@@ -9,3 +9,4 @@ self_learning_log.json
 *.log
 dataset/
 *.tflite
+!anemia_model.tflite
