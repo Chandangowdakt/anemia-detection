@@ -15,16 +15,31 @@ app.secret_key = os.environ.get("FLASK_SECRET_KEY", "anemia-local-dev-key")
 
 # Download model from Google Drive if not present (for Render deployment)
 if not os.path.exists(MODEL_PATH):
-    print("Model not found locally. Attempting download...")
+    print("Model not found. Downloading from Google Drive...")
     try:
         import gdown
-        # Google Drive file ID for anemia_model_v3.keras
-        url = f"https://drive.google.com/uc?id=1SpJoInRaUYqRqHR3mS6yp76m9wUnHLts"
-        gdown.download(url, MODEL_PATH, quiet=False)
-        print("Model downloaded successfully!")
+        FILE_ID = "1SpJoInRaUYqRqHR3mS6yp76m9wUnHLts"
+
+        # Try method 1: gdown with fuzzy
+        try:
+            url = f"https://drive.google.com/uc?id={FILE_ID}&export=download"
+            gdown.download(url, MODEL_PATH, quiet=False, fuzzy=True)
+            print(f"Download complete. Size: {os.path.getsize(MODEL_PATH)} bytes")
+        except Exception as e1:
+            print(f"Method 1 failed: {e1}")
+            # Try method 2: direct urllib
+            import urllib.request
+            url2 = f"https://drive.google.com/uc?export=download&id={FILE_ID}&confirm=t"
+            urllib.request.urlretrieve(url2, MODEL_PATH)
+            print(f"Method 2 complete. Size: {os.path.getsize(MODEL_PATH)} bytes")
+
+        if os.path.getsize(MODEL_PATH) < 1000000:
+            os.remove(MODEL_PATH)
+            raise ValueError("Downloaded file too small - likely an error page not the model")
+
     except Exception as e:
-        print(f"Model download failed: {e}")
-        raise FileNotFoundError(f"Model not found: {MODEL_PATH}")
+        print(f"All download methods failed: {e}")
+        raise
 
 model = tf.keras.models.load_model(MODEL_PATH)
 print("Model loaded successfully!")
