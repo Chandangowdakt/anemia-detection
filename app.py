@@ -18,8 +18,8 @@ if not os.path.exists(MODEL_PATH):
     print("Model not found locally. Attempting download...")
     try:
         import gdown
-        # TODO: Replace YOUR_FILE_ID with your Google Drive file ID after uploading anemia_model_v3.keras
-        url = f"https://drive.google.com/uc?id=YOUR_FILE_ID"
+        # Google Drive file ID for anemia_model_v3.keras
+        url = f"https://drive.google.com/uc?id=1SpJoInRaUYqRqHR3mS6yp76m9wUnHLts"
         gdown.download(url, MODEL_PATH, quiet=False)
         print("Model downloaded successfully!")
     except Exception as e:
