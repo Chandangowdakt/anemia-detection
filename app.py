@@ -7,13 +7,14 @@ os.environ['TF_NUM_INTEROP_THREADS'] = '1'
 
 from flask import Flask, request, render_template, session
 import tensorflow as tf
-tf.config.threading.set_inter_op_parallelism_threads(1)
-tf.config.threading.set_intra_op_parallelism_threads(1)
-tf.config.set_soft_device_placement(True)
 import numpy as np
 import cv2
 import base64
 from self_learning import SelfLearningManager
+
+tf.config.threading.set_inter_op_parallelism_threads(1)
+tf.config.threading.set_intra_op_parallelism_threads(1)
+tf.config.set_soft_device_placement(True)
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 PREDICTIONS_LOG = os.path.join(BASE_DIR, 'predictions_log.json')
@@ -22,7 +23,7 @@ MODEL_PATH = os.path.join(BASE_DIR, 'anemia_model_v3.keras')
 app = Flask(__name__)
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", "anemia-local-dev-key")
 
-# Download model from Google Drive if not present (for Render deployment)
+# Download model if not present
 if not os.path.exists(MODEL_PATH):
     print("Model not found. Downloading from Google Drive...")
     try:
@@ -261,28 +262,22 @@ def preprocess_for_model(img_bgr):
 def build_gradcam_overlay(arr, roi_rgb):
     try:
         # Use top_conv activation maps directly
-        # This works on CPU without gradient issues
         feature_extractor = tf.keras.models.Model(
             inputs=model.inputs,
             outputs=model.get_layer('top_conv').output
         )
 
-        # Get feature maps
         with tf.device('/CPU:0'):
             feature_maps = feature_extractor(arr)  # shape: (1, 7, 7, 1280)
-        feature_maps = feature_maps[0]          # shape: (7, 7, 1280)
+        feature_maps = feature_maps[0]  # shape: (7, 7, 1280)
 
-        # Average across all channels to get activation map
         heatmap = tf.reduce_mean(feature_maps, axis=-1).numpy()  # (7, 7)
+        with tf.device('/CPU:0'):
+            pred = float(model.predict(arr, verbose=0)[0][0])
 
-        # Also get prediction to weight the heatmap
-        pred = float(model.predict(arr, verbose=0)[0][0])
-
-        # If anaemic (pred < 0.5), invert so high activation = anaemic region
         if pred < 0.5:
             heatmap = -heatmap
 
-        # Normalize to 0-1
         heatmap = heatmap - heatmap.min()
         if heatmap.max() == 0:
             print("GradCAM: Feature maps all zero, using random heatmap")
@@ -290,26 +285,18 @@ def build_gradcam_overlay(arr, roi_rgb):
         else:
             heatmap = heatmap / heatmap.max()
 
-        # Resize to match ROI
         h, w = roi_rgb.shape[:2]
-        heatmap_resized = cv2.resize(heatmap, (w, h),
-                                      interpolation=cv2.INTER_LINEAR)
+        heatmap_resized = cv2.resize(heatmap, (w, h), interpolation=cv2.INTER_LINEAR)
         heatmap_uint8 = np.uint8(255 * heatmap_resized)
-
-        # Apply jet colormap
         heatmap_colored = cv2.applyColorMap(heatmap_uint8, cv2.COLORMAP_JET)
 
-        # Blend with original ROI
         roi_bgr = cv2.cvtColor(roi_rgb, cv2.COLOR_RGB2BGR)
         overlay = cv2.addWeighted(roi_bgr, 0.6, heatmap_colored, 0.4, 0)
 
         print("GradCAM: Success using top_conv activation maps")
         return to_data_url_bgr(overlay)
-
     except Exception as e:
         print(f"GradCAM error: {e}")
-        import traceback
-        traceback.print_exc()
         return None
 
 
