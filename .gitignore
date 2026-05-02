@@ -8,3 +8,4 @@ predictions_log.json
 self_learning_log.json
 *.log
 dataset/
+*.tflite

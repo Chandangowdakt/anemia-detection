@@ -1,51 +1,73 @@
 import os
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
-os.environ['TF_FORCE_GPU_ALLOW_GROWTH'] = 'true'
-os.environ['OMP_NUM_THREADS'] = '1'
-os.environ['TF_NUM_INTRAOP_THREADS'] = '1'
-os.environ['TF_NUM_INTEROP_THREADS'] = '1'
-
-from flask import Flask, request, render_template, session
-import tensorflow as tf
 import numpy as np
 import cv2
 import base64
-from self_learning import SelfLearningManager
+from flask import Flask, request, render_template, session
 
-tf.config.threading.set_inter_op_parallelism_threads(1)
-tf.config.threading.set_intra_op_parallelism_threads(1)
-tf.config.set_soft_device_placement(True)
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+TFLITE_PATH = os.path.join(BASE_DIR, 'anemia_model.tflite')
+KERAS_PATH = os.path.join(BASE_DIR, 'anemia_model_v3.keras')
 PREDICTIONS_LOG = os.path.join(BASE_DIR, 'predictions_log.json')
-MODEL_PATH = os.path.join(BASE_DIR, 'anemia_model_v3.keras')
+
+
+def download_file(file_id, dest_path):
+    import gdown
+    url = f"https://drive.google.com/uc?id={file_id}&export=download"
+    gdown.download(url, dest_path, quiet=False, fuzzy=True)
+    size = os.path.getsize(dest_path)
+    print(f"Downloaded {dest_path}: {size} bytes")
+    if size < 100000:
+        os.remove(dest_path)
+        raise ValueError(f"File too small: {size} bytes")
+
+
+# Download TFLite model if not present
+TFLITE_FILE_ID = "1IbRhL-gLQVG_9bKZAuobHZj0ya6wS80B"
+
+if not os.path.exists(TFLITE_PATH):
+    print("Downloading TFLite model...")
+    download_file(TFLITE_FILE_ID, TFLITE_PATH)
+
+# Load TFLite interpreter (uses only ~150MB RAM)
+import tensorflow as tf
+interpreter = tf.lite.Interpreter(model_path=TFLITE_PATH)
+interpreter.allocate_tensors()
+input_details = interpreter.get_input_details()
+output_details = interpreter.get_output_details()
+print(f"TFLite model loaded! Input shape: {input_details[0]['shape']}")
+
+
+def run_inference(arr):
+    """Run prediction using TFLite - memory efficient"""
+    input_arr = arr.astype(np.float32)
+    interpreter.set_tensor(input_details[0]['index'], input_arr)
+    interpreter.invoke()
+    output = interpreter.get_tensor(output_details[0]['index'])
+    return float(output[0][0])
+
+
+# Also load full keras model for GradCAM only (lazy load)
+keras_model = None
+
+
+def get_keras_model():
+    global keras_model
+    if keras_model is None:
+        KERAS_FILE_ID = "1SpJoInRaUYqRqHR3mS6yp76m9wUnHLts"
+        if not os.path.exists(KERAS_PATH):
+            print("Downloading Keras model for GradCAM...")
+            download_file(KERAS_FILE_ID, KERAS_PATH)
+        keras_model = tf.keras.models.load_model(KERAS_PATH)
+        print("Keras model loaded for GradCAM!")
+    return keras_model
+
+
+from self_learning import SelfLearningManager
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", "anemia-local-dev-key")
-
-# Download model if not present
-if not os.path.exists(MODEL_PATH):
-    print("Model not found. Downloading from Google Drive...")
-    try:
-        import gdown
-        FILE_ID = "1SpJoInRaUYqRqHR3mS6yp76m9wUnHLts"
-        url = f"https://drive.google.com/uc?id={FILE_ID}&export=download"
-        gdown.download(url, MODEL_PATH, quiet=False, fuzzy=True)
-        size = os.path.getsize(MODEL_PATH)
-        print(f"Downloaded: {size} bytes")
-        if size < 1000000:
-            os.remove(MODEL_PATH)
-            raise ValueError(f"File too small ({size} bytes) - not the model")
-    except Exception as e:
-        print(f"Download failed: {e}")
-        raise
-
-try:
-    model = tf.keras.models.load_model(MODEL_PATH)
-    print("Model loaded successfully!")
-except Exception as e:
-    print(f"Model loading failed: {e}")
-    raise
 
 sl_manager = SelfLearningManager(
     confidence_threshold=0.92,
@@ -261,19 +283,22 @@ def preprocess_for_model(img_bgr):
 
 def build_gradcam_overlay(arr, roi_rgb):
     try:
-        # Use top_conv activation maps directly
+        m = get_keras_model()
         feature_extractor = tf.keras.models.Model(
-            inputs=model.inputs,
-            outputs=model.get_layer('top_conv').output
+            inputs=m.inputs,
+            outputs=m.get_layer('top_conv').output
         )
+    except Exception:
+        return None
 
+    try:
         with tf.device('/CPU:0'):
             feature_maps = feature_extractor(arr)  # shape: (1, 7, 7, 1280)
         feature_maps = feature_maps[0]  # shape: (7, 7, 1280)
 
         heatmap = tf.reduce_mean(feature_maps, axis=-1).numpy()  # (7, 7)
         with tf.device('/CPU:0'):
-            pred = float(model.predict(arr, verbose=0)[0][0])
+            pred = float(m.predict(arr, verbose=0)[0][0])
 
         if pred < 0.5:
             heatmap = -heatmap
@@ -439,8 +464,7 @@ def predict():
         preview_image = to_data_url_bgr(img)
         roi_rgb, arr = preprocess_for_model(img)
 
-        with tf.device('/CPU:0'):
-            pred = float(model.predict(arr, verbose=0)[0][0])
+        pred = run_inference(arr)
         # Class indices: anaemic=0, non_anaemic=1
         print(f"Raw prediction: {pred:.4f}")
 
