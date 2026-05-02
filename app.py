@@ -1,7 +1,9 @@
+import os
+os.environ['TF_USE_LEGACY_KERAS'] = '1'
+
 from flask import Flask, request, render_template, session
 import tensorflow as tf
 import numpy as np
-import os
 import cv2
 import base64
 from self_learning import SelfLearningManager
@@ -41,8 +43,19 @@ if not os.path.exists(MODEL_PATH):
         print(f"All download methods failed: {e}")
         raise
 
-model = tf.keras.models.load_model(MODEL_PATH)
-print("Model loaded successfully!")
+# Try loading with keras 3 compatibility
+try:
+    model = tf.keras.models.load_model(MODEL_PATH)
+    print("Model loaded successfully!")
+except Exception as e1:
+    print(f"Standard load failed: {e1}")
+    try:
+        import tf_keras
+        model = tf_keras.models.load_model(MODEL_PATH)
+        print("Model loaded with tf_keras!")
+    except Exception as e2:
+        print(f"tf_keras load also failed: {e2}")
+        raise
 
 sl_manager = SelfLearningManager(
     confidence_threshold=0.92,
