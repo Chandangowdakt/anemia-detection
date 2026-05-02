@@ -1,5 +1,4 @@
 import os
-os.environ['TF_USE_LEGACY_KERAS'] = '1'
 
 from flask import Flask, request, render_template, session
 import tensorflow as tf
@@ -21,41 +20,23 @@ if not os.path.exists(MODEL_PATH):
     try:
         import gdown
         FILE_ID = "1SpJoInRaUYqRqHR3mS6yp76m9wUnHLts"
-
-        # Try method 1: gdown with fuzzy
-        try:
-            url = f"https://drive.google.com/uc?id={FILE_ID}&export=download"
-            gdown.download(url, MODEL_PATH, quiet=False, fuzzy=True)
-            print(f"Download complete. Size: {os.path.getsize(MODEL_PATH)} bytes")
-        except Exception as e1:
-            print(f"Method 1 failed: {e1}")
-            # Try method 2: direct urllib
-            import urllib.request
-            url2 = f"https://drive.google.com/uc?export=download&id={FILE_ID}&confirm=t"
-            urllib.request.urlretrieve(url2, MODEL_PATH)
-            print(f"Method 2 complete. Size: {os.path.getsize(MODEL_PATH)} bytes")
-
-        if os.path.getsize(MODEL_PATH) < 1000000:
+        url = f"https://drive.google.com/uc?id={FILE_ID}&export=download"
+        gdown.download(url, MODEL_PATH, quiet=False, fuzzy=True)
+        size = os.path.getsize(MODEL_PATH)
+        print(f"Downloaded: {size} bytes")
+        if size < 1000000:
             os.remove(MODEL_PATH)
-            raise ValueError("Downloaded file too small - likely an error page not the model")
-
+            raise ValueError(f"File too small ({size} bytes) - not the model")
     except Exception as e:
-        print(f"All download methods failed: {e}")
+        print(f"Download failed: {e}")
         raise
 
-# Try loading with keras 3 compatibility
 try:
     model = tf.keras.models.load_model(MODEL_PATH)
     print("Model loaded successfully!")
-except Exception as e1:
-    print(f"Standard load failed: {e1}")
-    try:
-        import tf_keras
-        model = tf_keras.models.load_model(MODEL_PATH)
-        print("Model loaded with tf_keras!")
-    except Exception as e2:
-        print(f"tf_keras load also failed: {e2}")
-        raise
+except Exception as e:
+    print(f"Model loading failed: {e}")
+    raise
 
 sl_manager = SelfLearningManager(
     confidence_threshold=0.92,
