@@ -1,7 +1,15 @@
 import os
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
+os.environ['TF_FORCE_GPU_ALLOW_GROWTH'] = 'true'
+os.environ['OMP_NUM_THREADS'] = '1'
+os.environ['TF_NUM_INTRAOP_THREADS'] = '1'
+os.environ['TF_NUM_INTEROP_THREADS'] = '1'
 
 from flask import Flask, request, render_template, session
 import tensorflow as tf
+tf.config.threading.set_inter_op_parallelism_threads(1)
+tf.config.threading.set_intra_op_parallelism_threads(1)
+tf.config.set_soft_device_placement(True)
 import numpy as np
 import cv2
 import base64
@@ -260,7 +268,8 @@ def build_gradcam_overlay(arr, roi_rgb):
         )
 
         # Get feature maps
-        feature_maps = feature_extractor(arr)  # shape: (1, 7, 7, 1280)
+        with tf.device('/CPU:0'):
+            feature_maps = feature_extractor(arr)  # shape: (1, 7, 7, 1280)
         feature_maps = feature_maps[0]          # shape: (7, 7, 1280)
 
         # Average across all channels to get activation map
@@ -443,7 +452,8 @@ def predict():
         preview_image = to_data_url_bgr(img)
         roi_rgb, arr = preprocess_for_model(img)
 
-        pred = float(model.predict(arr)[0][0])
+        with tf.device('/CPU:0'):
+            pred = float(model.predict(arr, verbose=0)[0][0])
         # Class indices: anaemic=0, non_anaemic=1
         print(f"Raw prediction: {pred:.4f}")
 
