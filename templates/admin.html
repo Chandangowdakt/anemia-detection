@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin Dashboard — Anemia Detection</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+           background: #f3f4f6; color: #111827; padding: 24px; }
+    .header { margin-bottom: 24px; }
+    .header h1 { font-size: 22px; font-weight: 700; }
+    .header p { font-size: 14px; color: #6b7280; margin-top: 4px; }
+    .grid4 { display: grid; grid-template-columns: repeat(4, 1fr);
+              gap: 16px; margin-bottom: 24px; }
+    .grid2 { display: grid; grid-template-columns: 1fr 1fr;
+              gap: 16px; margin-bottom: 24px; }
+    .card { background: white; border-radius: 12px;
+            padding: 20px; border: 1px solid #e5e7eb; }
+    .stat-label { font-size: 12px; color: #6b7280;
+                  font-weight: 500; margin-bottom: 6px; }
+    .stat-value { font-size: 28px; font-weight: 700; }
+    .stat-sub { font-size: 12px; color: #9ca3af; margin-top: 4px; }
+    .red { color: #ef4444; }
+    .green { color: #10b981; }
+    .blue { color: #3b82f6; }
+    .yellow { color: #f59e0b; }
+    .card h2 { font-size: 15px; font-weight: 600; margin-bottom: 16px; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th { text-align: left; padding: 8px 12px; background: #f9fafb;
+         color: #6b7280; font-weight: 500; border-bottom: 1px solid #e5e7eb; }
+    td { padding: 10px 12px; border-bottom: 1px solid #f3f4f6; }
+    tr:last-child td { border-bottom: none; }
+    .badge { display: inline-block; padding: 2px 10px; border-radius: 20px;
+             font-size: 11px; font-weight: 500; }
+    .badge-red { background: #fee2e2; color: #dc2626; }
+    .badge-green { background: #d1fae5; color: #059669; }
+    .badge-yellow { background: #fef3c7; color: #d97706; }
+    .badge-gray { background: #f3f4f6; color: #6b7280; }
+    .model-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .model-item { background: #f9fafb; border-radius: 8px; padding: 12px; }
+    .model-item .label { font-size: 11px; color: #6b7280; margin-bottom: 4px; }
+    .model-item .value { font-size: 14px; font-weight: 600; }
+    .back-link { display: inline-block; margin-bottom: 20px; color: #3b82f6;
+                 text-decoration: none; font-size: 14px; }
+    .back-link:hover { text-decoration: underline; }
+    .empty { text-align: center; color: #9ca3af; padding: 32px; font-size: 14px; }
+    @media (max-width: 768px) {
+      .grid4 { grid-template-columns: 1fr 1fr; }
+      .grid2 { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+<a href="/" class="back-link">← Back to App</a>
+
+<div class="header">
+  <h1>Admin Dashboard</h1>
+  <p>AI-Based Anemia Detection System — Model Performance & Prediction Analytics</p>
+</div>
+
+<!-- Stats Row -->
+<div class="grid4">
+  <div class="card">
+    <div class="stat-label">Total Predictions</div>
+    <div class="stat-value blue">{{ total }}</div>
+    <div class="stat-sub">All time</div>
+  </div>
+  <div class="card">
+    <div class="stat-label">Anaemic Detected</div>
+    <div class="stat-value red">{{ anaemic_count }}</div>
+    <div class="stat-sub">{{ anaemic_pct }}% of total</div>
+  </div>
+  <div class="card">
+    <div class="stat-label">Non-Anaemic</div>
+    <div class="stat-value green">{{ non_anaemic_count }}</div>
+    <div class="stat-sub">Healthy results</div>
+  </div>
+  <div class="card">
+    <div class="stat-label">Avg Confidence</div>
+    <div class="stat-value yellow">{{ avg_confidence }}%</div>
+    <div class="stat-sub">{{ high_conf_pct }}% high confidence</div>
+  </div>
+</div>
+
+<!-- Chart + Model Info -->
+<div class="grid2">
+  <div class="card">
+    <h2>Prediction Distribution</h2>
+    <canvas id="pieChart" height="220"></canvas>
+  </div>
+  <div class="card">
+    <h2>Model Information</h2>
+    <div class="model-grid">
+      <div class="model-item">
+        <div class="label">Model Architecture</div>
+        <div class="value">{{ model_name }}</div>
+      </div>
+      <div class="model-item">
+        <div class="label">Version</div>
+        <div class="value">{{ model_version }}</div>
+      </div>
+      <div class="model-item">
+        <div class="label">Validation Accuracy</div>
+        <div class="value green">{{ model_accuracy }}</div>
+      </div>
+      <div class="model-item">
+        <div class="label">Anaemic Recall</div>
+        <div class="value">75.0%</div>
+      </div>
+      <div class="model-item">
+        <div class="label">Training Images</div>
+        <div class="value">401</div>
+      </div>
+      <div class="model-item">
+        <div class="label">XAI Method</div>
+        <div class="value">GradCAM</div>
+      </div>
+    </div>
+    <div style="margin-top: 16px;">
+      <h2 style="margin-bottom: 12px;">Dataset Status</h2>
+      <div class="model-grid">
+        <div class="model-item">
+          <div class="label">Train Anaemic</div>
+          <div class="value red">{{ dataset_info.get('anaemic', 0) }} imgs</div>
+        </div>
+        <div class="model-item">
+          <div class="label">Train Non-Anaemic</div>
+          <div class="value green">{{ dataset_info.get('non_anaemic', 0) }} imgs</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Recent Predictions Table -->
+<div class="card">
+  <h2>Recent Predictions (Last 10)</h2>
+  {% if recent %}
+  <table>
+    <thead>
+      <tr>
+        <th>Timestamp</th>
+        <th>Result</th>
+        <th>Confidence</th>
+        <th>Confidence Level</th>
+        <th>Severity</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for entry in recent %}
+      <tr>
+        <td>{{ entry.timestamp }}</td>
+        <td>
+          {% if entry.result == 'Anaemic' %}
+            <span class="badge badge-red">Anaemic</span>
+          {% elif entry.result == 'Non-Anaemic' %}
+            <span class="badge badge-green">Non-Anaemic</span>
+          {% else %}
+            <span class="badge badge-yellow">{{ entry.result }}</span>
+          {% endif %}
+        </td>
+        <td><strong>{{ entry.confidence }}%</strong></td>
+        <td>
+          {% if entry.confidence_label == 'High Confidence' %}
+            <span class="badge badge-green">High</span>
+          {% elif entry.confidence_label == 'Medium Confidence' %}
+            <span class="badge badge-yellow">Medium</span>
+          {% else %}
+            <span class="badge badge-gray">Low</span>
+          {% endif %}
+        </td>
+        <td>
+          {% if entry.severity_level == 'High Risk' %}
+            <span class="badge badge-red">High Risk</span>
+          {% elif entry.severity_level == 'Moderate Risk' %}
+            <span class="badge badge-yellow">Moderate</span>
+          {% elif entry.severity_level == 'Normal' %}
+            <span class="badge badge-green">Normal</span>
+          {% else %}
+            <span class="badge badge-gray">{{ entry.severity_level }}</span>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="empty">No predictions yet. Upload an eye image to get started.</div>
+  {% endif %}
+</div>
+
+<div class="card" style="margin-top: 16px;">
+  <h2>Self-Learning Pipeline Status</h2>
+  <div class="model-grid" style="margin-top: 12px;">
+    <div class="model-item">
+      <div class="label">Images Auto-Added</div>
+      <div class="value blue">{{ sl_stats.total_added }}</div>
+    </div>
+    <div class="model-item">
+      <div class="label">Confidence Threshold</div>
+      <div class="value">{{ sl_stats.threshold }}%</div>
+    </div>
+    <div class="model-item">
+      <div class="label">Pending for Retrain</div>
+      <div class="value yellow">
+        {{ sl_stats.pending_count }}/{{ sl_stats.batch_size }}
+      </div>
+    </div>
+    <div class="model-item">
+      <div class="label">Retrains Triggered</div>
+      <div class="value green">{{ sl_stats.retrains_triggered }}</div>
+    </div>
+    <div class="model-item">
+      <div class="label">Anaemic Added</div>
+      <div class="value red">{{ sl_stats.anaemic_added }}</div>
+    </div>
+    <div class="model-item">
+      <div class="label">Non-Anaemic Added</div>
+      <div class="value green">{{ sl_stats.non_anaemic_added }}</div>
+    </div>
+  </div>
+</div>
+
+<script>
+  const ctx = document.getElementById('pieChart').getContext('2d');
+  if ({{ total }} === 0) {
+    document.getElementById('pieChart').parentElement.innerHTML =
+      '<div style="text-align:center;color:#9ca3af;padding:80px 0;font-size:14px;">No predictions yet</div>';
+  } else {
+    new Chart(ctx, {
+      type: 'doughnut',
+      data: {
+        labels: ['Anaemic', 'Non-Anaemic', 'Uncertain'],
+        datasets: [{
+          data: [{{ anaemic_count }}, {{ non_anaemic_count }}, {{ uncertain_count }}],
+          backgroundColor: ['#ef4444', '#10b981', '#f59e0b'],
+          borderWidth: 0,
+          hoverOffset: 8
+        }]
+      },
+      options: {
+        responsive: true,
+        plugins: {
+          legend: { position: 'bottom', labels: { font: { size: 12 } } }
+        },
+        cutout: '65%'
+      }
+    });
+  }
+</script>
+</body>
+</html>

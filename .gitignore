@@ -1,0 +1,10 @@
+.venv311/
+__pycache__/
+*.pyc
+*.h5
+*.keras
+uploaded.jpg
+predictions_log.json
+self_learning_log.json
+*.log
+dataset/

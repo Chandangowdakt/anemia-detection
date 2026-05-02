@@ -1,0 +1,600 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Result</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+    :root {
+      --primary: #2563eb;
+      --primary-soft: #dbeafe;
+      --danger: #dc2626;
+      --danger-soft: #fee2e2;
+      --success: #16a34a;
+      --success-soft: #dcfce7;
+      --warning: #d97706;
+      --warning-soft: #ffedd5;
+      --surface: #ffffff;
+      --surface-soft: #f8fafc;
+      --text: #0f172a;
+      --muted: #475569;
+      --border: #dbe4f0;
+      --shadow: 0 16px 40px rgba(15, 23, 42, 0.08);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: 'Inter', Arial, sans-serif;
+      background: radial-gradient(circle at top right, #eff6ff, #f8fafc 45%, #eef2ff);
+      color: var(--text);
+      padding: 24px;
+      display: flex;
+      justify-content: center;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 980px;
+      background: var(--surface);
+      border-radius: 20px;
+      border: 1px solid var(--border);
+      box-shadow: var(--shadow);
+      padding: 28px;
+      transition: transform 0.25s ease, box-shadow 0.25s ease;
+    }
+
+    .container:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 20px 48px rgba(15, 23, 42, 0.12);
+    }
+
+    .header {
+      text-align: center;
+      margin-bottom: 20px;
+    }
+
+    .header h1 {
+      margin: 0 0 8px;
+      font-size: clamp(1.5rem, 2.1vw, 2rem);
+    }
+
+    .header p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 0.96rem;
+    }
+
+    .error {
+      color: #991b1b;
+      background: var(--danger-soft);
+      border: 1px solid #fecaca;
+      padding: 12px;
+      border-radius: 12px;
+      margin-bottom: 16px;
+      text-align: center;
+    }
+
+    .error-box {
+      background: #fee2e2;
+      color: #b91c1c;
+      padding: 10px;
+      border-radius: 8px;
+      margin-bottom: 10px;
+    }
+
+    .result-card {
+      background: var(--surface-soft);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 18px;
+      margin-bottom: 18px;
+      text-align: center;
+      transition: transform 0.22s ease, box-shadow 0.22s ease;
+      animation: fadeUp 0.45s ease both;
+    }
+
+    .result-card:hover {
+      transform: translateY(-2px) scale(1.005);
+      box-shadow: 0 10px 24px rgba(15, 23, 42, 0.09);
+    }
+
+    .result-badge {
+      display: inline-block;
+      font-size: 1.15rem;
+      font-weight: 700;
+      padding: 10px 18px;
+      border-radius: 999px;
+      margin-bottom: 10px;
+      transition: transform 0.2s ease;
+    }
+
+    .result-badge:hover {
+      transform: scale(1.02);
+    }
+
+    .result-badge.Anaemic { background: var(--danger-soft); color: var(--danger); }
+    .result-badge.Non-Anaemic { background: var(--success-soft); color: var(--success); }
+    .result-badge.Uncertain { background: var(--warning-soft); color: var(--warning); }
+    .result-badge.Invalid\ Image { background: #f3f4f6; color: #6b7280; }
+
+    .confidence-value {
+      font-size: clamp(1.6rem, 2.8vw, 2.1rem);
+      font-weight: 700;
+      margin: 6px 0 2px;
+      color: #1e293b;
+    }
+
+    .confidence-label {
+      font-size: 0.92rem;
+      color: var(--muted);
+      margin: 0 0 10px;
+    }
+
+    .bar-wrap {
+      width: 100%;
+      background: #e2e8f0;
+      border-radius: 999px;
+      height: 12px;
+      overflow: hidden;
+    }
+
+    .bar-fill {
+      height: 100%;
+      width: 0;
+      background: linear-gradient(90deg, #38bdf8, var(--primary));
+      border-radius: 999px;
+      transition: width 0.6s ease;
+      transform-origin: left center;
+      animation: barReveal 0.9s ease-out both;
+    }
+
+    .media-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 16px;
+      margin-bottom: 16px;
+    }
+
+    .section-card {
+      background: var(--surface-soft);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 14px;
+      text-align: left;
+      transition: transform 0.22s ease, box-shadow 0.22s ease;
+      animation: fadeUp 0.55s ease both;
+    }
+
+    .section-card:hover {
+      transform: translateY(-2px) scale(1.005);
+      box-shadow: 0 10px 24px rgba(15, 23, 42, 0.09);
+    }
+
+    .section-title {
+      margin: 0 0 10px;
+      font-size: 1rem;
+      font-weight: 600;
+      color: #334155;
+    }
+
+    .helper-text {
+      color: var(--muted);
+      font-size: 0.8rem;
+      margin: -2px 0 10px;
+      line-height: 1.4;
+    }
+
+    .preview img {
+      width: 100%;
+      height: auto;
+      max-height: 280px;
+      object-fit: contain;
+      border-radius: 10px;
+      border: 1px solid #d8e3f2;
+      box-shadow: 0 8px 18px rgba(15, 23, 42, 0.08);
+      display: block;
+    }
+
+    .history-list, .suggestion-list {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+    }
+
+    .history-list li, .suggestion-list li {
+      padding: 10px 12px;
+      border-radius: 10px;
+      margin-bottom: 8px;
+      background: #f1f5f9;
+      border: 1px solid #e2e8f0;
+      color: #334155;
+      transition: transform 0.2s ease, background 0.2s ease;
+    }
+
+    .history-list li:hover, .suggestion-list li:hover {
+      transform: translateY(-1px);
+      background: #eaf2ff;
+    }
+
+    .message-card {
+      background: #eff6ff;
+      border: 1px solid #bfdbfe;
+      border-radius: 12px;
+      padding: 12px 14px;
+      color: #1e3a8a;
+      font-size: 0.92rem;
+      line-height: 1.5;
+      margin-bottom: 14px;
+    }
+
+    .suggestion-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+      margin-top: 10px;
+    }
+
+    .suggestion-card {
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 12px;
+      padding: 12px;
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    .suggestion-card:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 8px 18px rgba(15, 23, 42, 0.07);
+    }
+
+    .suggestion-card h4 {
+      margin: 0 0 8px;
+      font-size: 0.92rem;
+      color: #1e293b;
+    }
+
+    .disclaimer {
+      margin-top: 12px;
+      font-size: 0.82rem;
+      color: #7f1d1d;
+      background: #fef2f2;
+      border: 1px solid #fecaca;
+      border-radius: 10px;
+      padding: 10px;
+    }
+
+    .severity-pill {
+      display: inline-block;
+      margin-top: 8px;
+      padding: 6px 12px;
+      border-radius: 999px;
+      font-size: 0.82rem;
+      font-weight: 600;
+      background: #eef2ff;
+      color: #3730a3;
+      border: 1px solid #c7d2fe;
+    }
+
+    .severity-pill.high-risk {
+      background: #fee2e2;
+      color: #b91c1c;
+      border-color: #fecaca;
+    }
+
+    .severity-pill.moderate-risk {
+      background: #ffedd5;
+      color: #c2410c;
+      border-color: #fed7aa;
+    }
+
+    .severity-pill.needs-review {
+      background: #fef9c3;
+      color: #a16207;
+      border-color: #fde68a;
+    }
+
+    .severity-pill.normal {
+      background: #dcfce7;
+      color: #15803d;
+      border-color: #bbf7d0;
+    }
+
+    .suggestion-list li::before {
+      content: "✔ ";
+      color: #2563eb;
+      font-weight: 700;
+      margin-right: 2px;
+    }
+
+    .suggestion-list li.important {
+      font-weight: 700;
+    }
+
+    .footer-note {
+      color: #64748b;
+      font-size: 0.78rem;
+      margin-top: 14px;
+      text-align: center;
+    }
+
+    .actions {
+      text-align: center;
+      margin-top: 20px;
+      animation: fadeUp 0.65s ease both;
+    }
+
+    .back-link {
+      display: inline-block;
+      text-decoration: none;
+      color: #1d4ed8;
+      font-weight: 600;
+      transition: color 0.2s ease;
+    }
+
+    .back-link:hover {
+      color: #1e3a8a;
+    }
+
+    .back-link:focus-visible {
+      outline: 3px solid rgba(37, 99, 235, 0.35);
+      outline-offset: 3px;
+      border-radius: 6px;
+    }
+
+    .header, .error {
+      animation: fadeUp 0.35s ease both;
+    }
+
+    .result-card + .media-grid,
+    .media-grid + .section-card,
+    .section-card + .section-card {
+      margin-top: 16px;
+    }
+
+    @keyframes fadeUp {
+      from {
+        opacity: 0;
+        transform: translateY(8px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    @keyframes barReveal {
+      from { transform: scaleX(0); }
+      to { transform: scaleX(1); }
+    }
+
+    @media (max-width: 820px) {
+      .container {
+        padding: 20px;
+      }
+      .media-grid {
+        grid-template-columns: 1fr;
+      }
+      .suggestion-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      * {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+      }
+      .container:hover,
+      .result-card:hover,
+      .section-card:hover,
+      .result-badge:hover,
+      .history-list li:hover,
+      .suggestion-list li:hover {
+        transform: none !important;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="container">
+    <header class="header">
+      <h1>AI-Based Anemia Detection System</h1>
+      <p>Prediction report with confidence insights and explainability visualization.</p>
+    </header>
+
+    {% if error %}
+    <div class="error-box">{{ error }}</div>
+    {% endif %}
+
+    <section class="result-card">
+      <div class="result-badge {{ result }}">{{ result }}</div>
+      <div class="severity-pill
+        {% if severity_level == 'High Risk' %}high-risk{% elif severity_level == 'Moderate Risk' %}moderate-risk{% elif severity_level == 'Needs Review' %}needs-review{% else %}normal{% endif %}">
+        Severity Level: {{ severity_level }}
+      </div>
+      <p class="confidence-value" title="High: reliable prediction | Medium: moderate certainty | Low: uncertain result">{{ confidence }}%</p>
+      <p class="confidence-label" title="High: reliable prediction | Medium: moderate certainty | Low: uncertain result">{{ confidence_label }}</p>
+      <div style="display:flex;justify-content:center;margin:16px 0;">
+        <svg width="120" height="120" viewBox="0 0 120 120">
+          <circle cx="60" cy="60" r="50" fill="none"
+                  stroke="#e5e7eb" stroke-width="10"/>
+          <circle cx="60" cy="60" r="50" fill="none"
+                  stroke="{% if result == 'Anaemic' %}#ef4444
+                          {% elif result == 'Non-Anaemic' %}#10b981
+                          {% else %}#f59e0b{% endif %}"
+                  stroke-width="10"
+                  stroke-dasharray="{{ (confidence / 100) * 314 }} 314"
+                  stroke-dashoffset="78.5"
+                  stroke-linecap="round"
+                  transform="rotate(-90 60 60)"/>
+          <text x="60" y="56" text-anchor="middle"
+                font-size="20" font-weight="700" fill="#111827">
+            {{ confidence }}%
+          </text>
+          <text x="60" y="74" text-anchor="middle"
+                font-size="10" fill="#6b7280">
+            {{ confidence_label }}
+          </text>
+        </svg>
+      </div>
+      <div style="background:#f9fafb;border-radius:10px;
+           padding:16px;margin:16px 0;font-size:13px;color:#374151;">
+        <strong style="display:block;margin-bottom:6px;">
+          What this result means:
+        </strong>
+        {% if result == "Anaemic" and confidence >= 85 %}
+          High confidence signs of anemia detected in conjunctiva.
+          Pale inner eyelid suggests reduced hemoglobin.
+          Please consult a doctor and get a CBC blood test.
+        {% elif result == "Anaemic" %}
+          Possible signs of anemia detected. Result should be
+          confirmed with a clinical blood test.
+        {% elif result == "Non-Anaemic" and confidence >= 85 %}
+          Conjunctiva shows healthy coloration with good blood
+          perfusion. No strong indicators of anemia detected.
+        {% elif result == "Non-Anaemic" %}
+          Result trends non-anaemic. Continue healthy diet and
+          regular checkups.
+        {% else %}
+          Result is inconclusive. Please retake with a clearer
+          image of the inner lower eyelid in good lighting.
+        {% endif %}
+      </div>
+    </section>
+
+    <section class="media-grid">
+      {% if preview_image %}
+      <div class="section-card">
+        <h3 class="section-title">Uploaded Image</h3>
+        <div class="preview"><img src="{{ preview_image }}" alt="Uploaded preview"></div>
+      </div>
+      {% endif %}
+    </section>
+
+    <div style="margin-top: 24px; padding: 20px; background: white;
+         border: 1px solid #e5e7eb; border-radius: 12px;">
+      <h3 style="font-size: 16px; font-weight: 600; margin-bottom: 4px;">
+        AI Explainability — GradCAM Heatmap
+      </h3>
+      <p style="font-size: 13px; color: #6b7280; margin-bottom: 16px;">
+        Red/yellow areas show where the AI focused to make its decision
+      </p>
+
+      {% if heatmap_image and heatmap_image != 'None' and heatmap_image != '' %}
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+        <div>
+          <p style="font-weight: 500; font-size: 13px; margin-bottom: 8px;">
+            Original Image
+          </p>
+          <img src="{{ preview_image }}"
+               style="width: 100%; border-radius: 8px; display: block;">
+        </div>
+        <div>
+          <p style="font-weight: 500; font-size: 13px; margin-bottom: 8px;">
+            GradCAM Heatmap
+          </p>
+          <img src="{{ heatmap_image }}"
+               style="width: 100%; border-radius: 8px; display: block;"
+               onerror="this.style.display='none';
+                        document.getElementById('heatmap-error').style.display='block';">
+          <div id="heatmap-error" style="display:none; color:#9ca3af;
+               font-size:13px; padding: 20px; text-align:center;">
+            Heatmap rendering failed
+          </div>
+        </div>
+      </div>
+
+      <div style="margin-top: 12px; padding: 12px; background: #f9fafb;
+           border-radius: 8px; font-size: 13px; color: #4b5563;">
+        {% if result == "Anaemic" %}
+          <strong>Why Anaemic was detected:</strong> The AI focused on
+          the conjunctiva region (inner eyelid) and detected reduced
+          redness/pinkness. Red/yellow heatmap areas show the specific
+          regions that most strongly indicated low hemoglobin.
+          Pale conjunctiva is a clinically recognized sign of anemia.
+        {% elif result == "Non-Anaemic" %}
+          <strong>Why Non-Anaemic was detected:</strong> The AI detected
+          healthy pink/red coloration in the conjunctiva. The heatmap
+          highlights regions with normal blood perfusion. Good redness
+          indicates adequate hemoglobin levels.
+        {% else %}
+          <strong>Inconclusive result:</strong> The AI could not find
+          clear conjunctiva features. This may be due to image angle,
+          lighting, or the conjunctiva not being visible enough.
+        {% endif %}
+      </div>
+
+      {% else %}
+      <div style="padding: 20px; text-align: center; color: #9ca3af;
+           background: #f9fafb; border-radius: 8px; font-size: 13px;">
+        AI visualization unavailable for this image
+      </div>
+      {% endif %}
+    </div>
+
+    {% if prediction_history %}
+    <section class="section-card" style="margin-bottom:16px;">
+      <h3 class="section-title">Recent Predictions</h3>
+      <ul class="history-list">
+        {% for item in prediction_history %}
+        <li>{{ item.result }} - {{ item.confidence }}%</li>
+        {% endfor %}
+      </ul>
+    </section>
+    {% endif %}
+
+    <section class="section-card">
+      <h3 class="section-title">Dietary Suggestions</h3>
+      {% if personalized_message %}
+      <div class="message-card">{{ personalized_message }}</div>
+      {% endif %}
+
+      {% if suggestion_sections %}
+      <div class="suggestion-grid">
+        {% for heading, items in suggestion_sections.items() %}
+        <div class="suggestion-card">
+          <h4>
+            {% if heading == "Diet Recommendations" %}🥗 {% endif %}
+            {% if heading == "Lifestyle Tips" %}🏃 {% endif %}
+            {% if heading == "Medical Advice" %}🩺 {% endif %}
+            {{ heading }}
+          </h4>
+          <ul class="suggestion-list">
+            {% for tip in items %}
+            <li class="{% if loop.first %}important{% endif %}">{{ tip }}</li>
+            {% endfor %}
+          </ul>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <ul class="suggestion-list">
+        {% for s in suggestions %}
+        <li class="{% if loop.first %}important{% endif %}">{{ s }}</li>
+        {% endfor %}
+      </ul>
+      {% endif %}
+
+      <p class="disclaimer">{{ safety_disclaimer or "This is not a medical diagnosis. Consult a doctor." }}</p>
+      <p class="footer-note">This is a screening tool only. Consult a doctor for diagnosis.</p>
+    </section>
+
+    <div class="actions">
+      <a class="back-link" href="/">← Try another image</a>
+    </div>
+  </main>
+  <div style="text-align: center; padding: 16px; margin-top: 8px;">
+    <a href="/admin"
+       style="font-size: 12px; color: #9ca3af; text-decoration: none;">
+      Admin Dashboard
+    </a>
+  </div>
+</body>
+</html>
