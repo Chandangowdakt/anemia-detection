@@ -10,3 +10,5 @@ services:
         generateValue: true
       - key: PYTHON_VERSION
         value: 3.12.0
+      - key: MALLOC_ARENA_MAX
+        value: "2"

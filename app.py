@@ -1,10 +1,16 @@
 import os
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
+os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
+os.environ['OMP_NUM_THREADS'] = '1'
+os.environ['TF_NUM_INTRAOP_THREADS'] = '1'
+os.environ['TF_NUM_INTEROP_THREADS'] = '1'
+os.environ['TF_FORCE_GPU_ALLOW_GROWTH'] = 'true'
+
 import numpy as np
 import cv2
 import base64
+import gc
 from flask import Flask, request, render_template, session
-
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 TFLITE_PATH = os.path.join(BASE_DIR, 'anemia_model.tflite')
@@ -32,6 +38,8 @@ if not os.path.exists(TFLITE_PATH):
 
 # Load TFLite interpreter (uses only ~150MB RAM)
 import tensorflow as tf
+tf.config.threading.set_inter_op_parallelism_threads(1)
+tf.config.threading.set_intra_op_parallelism_threads(1)
 interpreter = tf.lite.Interpreter(model_path=TFLITE_PATH)
 interpreter.allocate_tensors()
 input_details = interpreter.get_input_details()
@@ -288,10 +296,6 @@ def build_gradcam_overlay(arr, roi_rgb):
             inputs=m.inputs,
             outputs=m.get_layer('top_conv').output
         )
-    except Exception:
-        return None
-
-    try:
         with tf.device('/CPU:0'):
             feature_maps = feature_extractor(arr)  # shape: (1, 7, 7, 1280)
         feature_maps = feature_maps[0]  # shape: (7, 7, 1280)
@@ -319,9 +323,13 @@ def build_gradcam_overlay(arr, roi_rgb):
         overlay = cv2.addWeighted(roi_bgr, 0.6, heatmap_colored, 0.4, 0)
 
         print("GradCAM: Success using top_conv activation maps")
-        return to_data_url_bgr(overlay)
+        result = to_data_url_bgr(overlay)
+        del feature_maps, heatmap, heatmap_resized, overlay
+        gc.collect()
+        return result
     except Exception as e:
-        print(f"GradCAM error: {e}")
+        print(f"GradCAM skipped: {e}")
+        gc.collect()
         return None
 
 
@@ -436,6 +444,7 @@ def predict():
 
         is_valid, validation_msg = is_likely_eye_image(img)
         if not is_valid:
+            gc.collect()
             return render_template(
                 "result.html",
                 result="Invalid Image",
@@ -518,6 +527,7 @@ def predict():
         history.insert(0, {"result": result, "confidence": round(confidence, 1)})
         session["prediction_history"] = history[:3]
 
+        gc.collect()
         return render_template(
             "result.html",
             result=result,
@@ -537,6 +547,7 @@ def predict():
         fallback_message, fallback_sections = build_suggestion_sections(
             "Uncertain", "Low Confidence", recommendations["Uncertain"]
         )
+        gc.collect()
         return render_template(
             "result.html",
             result="Uncertain",

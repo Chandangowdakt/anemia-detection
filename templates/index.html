@@ -199,13 +199,47 @@
     <form id="uploadForm" action="/predict" method="post" enctype="multipart/form-data">
       <div class="upload-box">
         <span class="upload-label">Drop image here or choose a file</span><br>
-        <input type="file" name="image" accept="image/*" required>
+        <input id="imageInput" type="file" name="image" accept="image/*" required>
       </div>
-      <button type="button" onclick="openCamera()">Use Camera</button>
+      <button id="useCameraBtn" type="button">Use Camera</button>
       <br><br>
-      <video id="camera" autoplay style="display:none; width:100%;"></video>
-      <button id="captureBtn" type="button" style="display:none;">Capture</button>
-      <canvas id="canvas" style="display:none;"></canvas>
+
+      <!-- Camera Section HTML -->
+      <div id="cameraSection" style="display:none; margin-top: 16px;">
+        <video id="cameraFeed" autoplay playsinline
+               style="width:100%; border-radius:8px; max-height:300px;
+                      object-fit:cover;"></video>
+        <canvas id="captureCanvas" style="display:none;"></canvas>
+        <div style="display:flex; gap:12px; margin-top:12px;
+                     justify-content:center; flex-wrap:wrap;">
+          <button type="button" id="captureBtn"
+                  style="background:#3b82f6; color:white; border:none;
+                         padding:10px 24px; border-radius:8px;
+                         font-size:15px; cursor:pointer; font-weight:500;">
+            Capture Photo
+          </button>
+          <button type="button" id="retakeBtn" style="display:none;
+                  background:#6b7280; color:white; border:none;
+                  padding:10px 24px; border-radius:8px;
+                  font-size:15px; cursor:pointer;">
+            Retake
+          </button>
+          <button type="button" id="closeCameraBtn"
+                  style="background:#ef4444; color:white; border:none;
+                         padding:10px 24px; border-radius:8px;
+                         font-size:15px; cursor:pointer;">
+            Close Camera
+          </button>
+        </div>
+        <img id="capturedPreview" style="display:none; width:100%;
+             border-radius:8px; margin-top:8px; max-height:300px;
+             object-fit:cover;" alt="Captured photo"/>
+        <p id="captureStatus" style="text-align:center; color:#10b981;
+           font-size:13px; margin-top:6px; display:none;">
+          Photo captured! Click Analyze Image to proceed.
+        </p>
+      </div>
+
       <br><br>
       <button id="analyzeBtn" type="submit">Analyze Image</button>
     </form>
@@ -217,6 +251,10 @@
   </main>
 
   <script>
+    // Camera JavaScript - Replace ALL existing camera JS with this
+    let stream = null;
+    let capturedBlob = null;
+
     const uploadForm = document.getElementById('uploadForm');
     const loadingMsg = document.getElementById('loadingMsg');
     const analyzeBtn = document.getElementById('analyzeBtn');
@@ -227,43 +265,106 @@
       analyzeBtn.style.cursor = 'not-allowed';
     });
 
-    function openCamera() {
-      const video = document.getElementById('camera');
-      const btn = document.getElementById('captureBtn');
-      video.style.display = 'block';
-      btn.style.display = 'inline-block';
+    // Use Camera button
+    document.getElementById('useCameraBtn').addEventListener('click', async function() {
+      const cameraSection = document.getElementById('cameraSection');
+      cameraSection.style.display = 'block';
 
-      navigator.mediaDevices.getUserMedia({ video: true })
-        .then(stream => {
-          video.srcObject = stream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            facingMode: 'user',
+            width: { ideal: 640 },
+            height: { ideal: 480 }
+          },
+          audio: false
         });
-    }
+        document.getElementById('cameraFeed').srcObject = stream;
+        document.getElementById('captureBtn').style.display = 'inline-block';
+        document.getElementById('capturedPreview').style.display = 'none';
+        document.getElementById('retakeBtn').style.display = 'none';
+        document.getElementById('captureStatus').style.display = 'none';
+        capturedBlob = null;
+      } catch (err) {
+        console.error('Camera error:', err);
+        alert('Camera access denied or not available. Please upload an image file instead.');
+        cameraSection.style.display = 'none';
+      }
+    });
 
-    document.getElementById('captureBtn').onclick = function() {
-      const video = document.getElementById('camera');
-      const canvas = document.getElementById('canvas');
+    // Capture button
+    document.getElementById('captureBtn').addEventListener('click', function() {
+      const video = document.getElementById('cameraFeed');
+      const canvas = document.getElementById('captureCanvas');
+      const preview = document.getElementById('capturedPreview');
+
+      // Set canvas size to video size
+      canvas.width = video.videoWidth || 640;
+      canvas.height = video.videoHeight || 480;
+
+      // Draw video frame to canvas
       const ctx = canvas.getContext('2d');
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
+      // Convert to blob and show preview
+      canvas.toBlob(function(blob) {
+        capturedBlob = blob;
+        const url = URL.createObjectURL(blob);
+        preview.src = url;
+        preview.style.display = 'block';
 
-      ctx.drawImage(video, 0, 0);
+        // Stop video stream
+        if (stream) {
+          stream.getTracks().forEach(track => track.stop());
+          stream = null;
+        }
+        document.getElementById('cameraFeed').style.display = 'none';
+        document.getElementById('captureBtn').style.display = 'none';
+        document.getElementById('retakeBtn').style.display = 'inline-block';
+        document.getElementById('captureStatus').style.display = 'block';
 
-      canvas.toBlob(blob => {
-        const fileInput = document.querySelector('input[type="file"]');
-        const file = new File([blob], "capture.jpg", { type: "image/jpeg" });
-
+        // Create a File from blob and set it to the file input
+        const file = new File([blob], 'camera_capture.jpg', { type: 'image/jpeg' });
         const dataTransfer = new DataTransfer();
         dataTransfer.items.add(file);
-        fileInput.files = dataTransfer.files;
-      });
-    };
+        document.getElementById('imageInput').files = dataTransfer.files;
 
-    document.querySelector("form").addEventListener("submit", function() {
-      const msg = document.createElement("p");
-      msg.innerText = "Analyzing image, please wait...";
-      this.appendChild(msg);
+      }, 'image/jpeg', 0.9);
     });
+
+    // Retake button
+    document.getElementById('retakeBtn').addEventListener('click', async function() {
+      capturedBlob = null;
+      document.getElementById('capturedPreview').style.display = 'none';
+      document.getElementById('cameraFeed').style.display = 'block';
+      document.getElementById('retakeBtn').style.display = 'none';
+      document.getElementById('captureBtn').style.display = 'inline-block';
+      document.getElementById('captureStatus').style.display = 'none';
+
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: 'user' },
+          audio: false
+        });
+        document.getElementById('cameraFeed').srcObject = stream;
+      } catch(err) {
+        alert('Could not restart camera');
+      }
+    });
+
+    // Close camera button
+    document.getElementById('closeCameraBtn').addEventListener('click', function() {
+      if (stream) {
+        stream.getTracks().forEach(track => track.stop());
+        stream = null;
+      }
+      document.getElementById('cameraSection').style.display = 'none';
+      document.getElementById('cameraFeed').style.display = 'block';
+      capturedBlob = null;
+    });
+
+    // Make sure Use Camera button has correct ID
+    // The button in HTML must have id="useCameraBtn"
   </script>
 </body>
 </html>
