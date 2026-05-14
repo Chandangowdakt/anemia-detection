@@ -290,46 +290,51 @@ def preprocess_for_model(img_bgr):
 
 
 def build_gradcam_overlay(arr, roi_rgb):
+    # Check if running on Render (low memory environment)
+    is_production = os.environ.get('RENDER', False)
+    if is_production:
+        # Skip GradCAM on production to save memory
+        # Generate a simple color overlay instead
+        try:
+            roi_bgr = cv2.cvtColor(roi_rgb, cv2.COLOR_RGB2BGR)
+            overlay = cv2.applyColorMap(
+                cv2.cvtColor(roi_bgr, cv2.COLOR_BGR2GRAY),
+                cv2.COLORMAP_JET
+            )
+            result = cv2.addWeighted(roi_bgr, 0.7, overlay, 0.3, 0)
+            return to_data_url_bgr(result)
+        except:
+            return None
+
+    # Full GradCAM for local development
     try:
-        m = get_keras_model()
+        model = get_keras_model()
         feature_extractor = tf.keras.models.Model(
-            inputs=m.inputs,
-            outputs=m.get_layer('top_conv').output
+            inputs=model.inputs,
+            outputs=model.get_layer('top_conv').output
         )
         with tf.device('/CPU:0'):
-            feature_maps = feature_extractor(arr)  # shape: (1, 7, 7, 1280)
-        feature_maps = feature_maps[0]  # shape: (7, 7, 1280)
-
-        heatmap = tf.reduce_mean(feature_maps, axis=-1).numpy()  # (7, 7)
-        with tf.device('/CPU:0'):
-            pred = float(m.predict(arr, verbose=0)[0][0])
-
+            feature_maps = feature_extractor(arr)
+        feature_maps = feature_maps[0]
+        heatmap = tf.reduce_mean(feature_maps, axis=-1).numpy()
+        pred = float(interpreter.get_tensor(
+            output_details[0]['index'])[0][0])
         if pred < 0.5:
             heatmap = -heatmap
-
         heatmap = heatmap - heatmap.min()
-        if heatmap.max() == 0:
-            print("GradCAM: Feature maps all zero, using random heatmap")
-            heatmap = np.random.rand(7, 7).astype(np.float32)
-        else:
+        if heatmap.max() > 0:
             heatmap = heatmap / heatmap.max()
-
         h, w = roi_rgb.shape[:2]
-        heatmap_resized = cv2.resize(heatmap, (w, h), interpolation=cv2.INTER_LINEAR)
+        heatmap_resized = cv2.resize(heatmap.astype(np.float32), (w, h))
         heatmap_uint8 = np.uint8(255 * heatmap_resized)
         heatmap_colored = cv2.applyColorMap(heatmap_uint8, cv2.COLORMAP_JET)
-
         roi_bgr = cv2.cvtColor(roi_rgb, cv2.COLOR_RGB2BGR)
         overlay = cv2.addWeighted(roi_bgr, 0.6, heatmap_colored, 0.4, 0)
-
-        print("GradCAM: Success using top_conv activation maps")
-        result = to_data_url_bgr(overlay)
-        del feature_maps, heatmap, heatmap_resized, overlay
+        del feature_maps, heatmap, heatmap_resized, heatmap_colored
         gc.collect()
-        return result
+        return to_data_url_bgr(overlay)
     except Exception as e:
-        print(f"GradCAM skipped: {e}")
-        gc.collect()
+        print(f"GradCAM error: {e}")
         return None
 
 
@@ -442,6 +447,13 @@ def predict():
         if img is None:
             raise ValueError("Unable to load image. Please upload a valid image file.")
 
+        # Resize large images to save memory
+        h, w = img.shape[:2]
+        if h > 800 or w > 800:
+            scale = 800 / max(h, w)
+            new_h, new_w = int(h * scale), int(w * scale)
+            img = cv2.resize(img, (new_w, new_h), interpolation=cv2.INTER_AREA)
+
         is_valid, validation_msg = is_likely_eye_image(img)
         if not is_valid:
             gc.collect()
@@ -527,6 +539,7 @@ def predict():
         history.insert(0, {"result": result, "confidence": round(confidence, 1)})
         session["prediction_history"] = history[:3]
 
+        del arr, roi_rgb
         gc.collect()
         return render_template(
             "result.html",
